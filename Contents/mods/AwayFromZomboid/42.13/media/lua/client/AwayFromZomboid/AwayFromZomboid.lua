@@ -33,7 +33,7 @@ AwayFromZomboid.originalOnCommandEntered = ISChat.onCommandEntered
 
 --- Log a message.
 ---@param message string
----@return void
+---@return Void
 AwayFromZomboid.log = function(message)
     print(AwayFromZomboid.modName .. ": " .. message)
 end
@@ -56,7 +56,7 @@ end
 
 --- Send a chat notification.
 ---@param message string
----@return void
+---@return Void
 AwayFromZomboid.sendChatNotification = function(message)
     local chatChannel = AwayFromZomboid.getChatNotificationChannel()
     if chatChannel == 1 then
@@ -210,7 +210,7 @@ AwayFromZomboid.shouldKick = function()
 end
 
 --- Reset the AFK timer.
----@return void
+---@return Void
 AwayFromZomboid.resetAFKTimer = function()
     AwayFromZomboid.AFKTimer = 0
     AwayFromZomboid.previousCheckTime = nil
@@ -218,7 +218,7 @@ end
 
 --- Increment the AFK timer.
 ---@param delta number
----@return void
+---@return Void
 AwayFromZomboid.incrementAFKTimer = function(delta)
     delta = delta or 1
     AwayFromZomboid.AFKTimer = AwayFromZomboid.AFKTimer + delta
@@ -240,7 +240,7 @@ AwayFromZomboid.incrementAFKTimer = function(delta)
 end
 
 --- Disconnect player.
----@return void
+---@return Void
 AwayFromZomboid.disconnectPlayer = function()
     if AwayFromZomboid.isMultiplayerClient() then
         getCore():exitToMenu()
@@ -248,7 +248,7 @@ AwayFromZomboid.disconnectPlayer = function()
 end
 
 --- Popup the AFK message.
----@return void
+---@return Void
 AwayFromZomboid.AFKOnPopup = function()
     local message = AwayFromZomboid.getAFKOnPopupMessage()
     if AwayFromZomboid.getDoKick() then
@@ -259,14 +259,14 @@ AwayFromZomboid.AFKOnPopup = function()
 end
 
 --- Popup the not AFK message.
----@return void
+---@return Void
 AwayFromZomboid.AFKOffPopup = function()
     getPlayer():setHaloNote(AwayFromZomboid.getAFKOffPopupMessage(), 0, 255, 0, 500)
     AwayFromZomboid.sendChatNotification(AwayFromZomboid.getAFKOffPopupMessage())
 end
 
 --- Handle becoming AFK.
----@return void
+---@return Void
 AwayFromZomboid.becomeAFK = function()
     AwayFromZomboid.isAFK = true
 
@@ -282,7 +282,7 @@ AwayFromZomboid.becomeAFK = function()
 end
 
 --- Handle becoming not AFK.
----@return void
+---@return Void
 AwayFromZomboid.becomeNotAFK = function()
     AwayFromZomboid.isAFK = false
 
@@ -300,14 +300,16 @@ AwayFromZomboid.becomeNotAFK = function()
 end
 
 --- Increment the AFK timer hook for every in-game minute.
----@return void
+---@return Void
 AwayFromZomboid.incrementAFKHook = function()
     if AwayFromZomboid.getIgnoreStaff() then
-        local access_level = getAccessLevel()
-        if access_level ~= nil and access_level ~= "" and access_level ~= "none" then
-            -- Access level for none seems atypical compared to other access levels
-            AwayFromZomboid.resetAFKTimer()
-            return
+        local player = getPlayer()
+        if player then
+            local roleName = player:getRole():getName()
+            if roleName ~= nil and roleName ~= "" and roleName ~= "none" then
+                AwayFromZomboid.resetAFKTimer()
+                return
+            end
         end
     end
 
@@ -352,7 +354,7 @@ end
 
 --- Register the reset hooks.
 ---@param method function
----@return void
+---@return Void
 AwayFromZomboid.registerActivityHooks = function(method)
     Events.OnCustomUIKeyPressed.Add(method)
     Events.OnKeyPressed.Add(method)
@@ -362,7 +364,7 @@ end
 
 --- Remove the reset hooks.
 ---@param method function
----@return void
+---@return Void
 AwayFromZomboid.deRegisterActivityHooks = function(method)
     Events.OnCustomUIKeyPressed.Remove(method)
     Events.OnKeyPressed.Remove(method)
@@ -373,7 +375,7 @@ end
 -- Activate & Deactivate
 
 --- Activate the AFK system.
----@return void
+---@return Void
 AwayFromZomboid.activate = function()
     if AwayFromZomboid.isActive then
         AwayFromZomboid.log("AFK system already active.")
@@ -393,7 +395,7 @@ AwayFromZomboid.activate = function()
 end
 
 --- Deactivate the AFK system.
----@return void
+---@return Void
 AwayFromZomboid.deactivate = function()
     AwayFromZomboid.resetAFKTimer()
     AwayFromZomboid.isAFK = false
@@ -410,7 +412,7 @@ end
 -- Init
 
 --- Initialize the mod and add event hooks.
----@return void
+---@return Void
 AwayFromZomboid.init = function()
     if AwayFromZomboid.isMultiplayerClient() == false then
         AwayFromZomboid.log("Mod is not running on a multiplayer client. Not initializing.")
@@ -429,16 +431,22 @@ Events.OnConnected.Add(AwayFromZomboid.init)
 
 -- Joypad support
 
+--- Handle any controller activity: reset AFK timer and leave AFK state if needed.
+---@return Void
+AwayFromZomboid.onActivity = function()
+    AwayFromZomboid.resetAFKTimer()
+    if AwayFromZomboid.isAFK == true then
+        AwayFromZomboid.becomeNotAFK()
+    end
+end
+
 --- Old onPressButton function.
 local oldOnPressButton = JoypadControllerData.onPressButton
 
 function JoypadControllerData:onPressButton(button)
     oldOnPressButton(self, button)
     if AwayFromZomboid and AwayFromZomboid.isActive then
-        AwayFromZomboid.resetAFKTimer()
-        if AwayFromZomboid.isAFK == true then
-            AwayFromZomboid.becomeNotAFK()
-        end
+        AwayFromZomboid.onActivity()
     end
 end
 
@@ -451,19 +459,25 @@ function JoypadControllerData:update(time)
         return
     end
     if AwayFromZomboid and AwayFromZomboid.isActive then
+        -- Triggers
         if isJoypadRTPressed(self.id) or isJoypadLTPressed(self.id) then
-            AwayFromZomboid.resetAFKTimer()
-            if AwayFromZomboid.isAFK == true then
-                AwayFromZomboid.becomeNotAFK()
-            end
+            AwayFromZomboid.onActivity()
         end
-        local axisX = getJoypadMovementAxisX(self.id)
-        local axisY = getJoypadMovementAxisY(self.id)
-        if axisX ~= 0 or axisY ~= 0 then
-            AwayFromZomboid.resetAFKTimer()
-            if AwayFromZomboid.isAFK == true then
-                AwayFromZomboid.becomeNotAFK()
-            end
+        -- Left stick (movement)
+        local moveX = getJoypadMovementAxisX(self.id)
+        local moveY = getJoypadMovementAxisY(self.id)
+        if moveX ~= 0 or moveY ~= 0 then
+            AwayFromZomboid.onActivity()
+        end
+        -- Right stick (aiming)
+        local aimX = getJoypadAimingAxisX(self.id)
+        local aimY = getJoypadAimingAxisY(self.id)
+        if aimX ~= 0 or aimY ~= 0 then
+            AwayFromZomboid.onActivity()
+        end
+        -- D-Pad
+        if isJoypadDown(self.id) or isJoypadUp(self.id) or isJoypadLeft(self.id) or isJoypadRight(self.id) then
+            AwayFromZomboid.onActivity()
         end
     end
 end
