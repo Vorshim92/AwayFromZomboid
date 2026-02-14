@@ -305,8 +305,8 @@ AwayFromZomboid.incrementAFKHook = function()
     if AwayFromZomboid.getIgnoreStaff() then
         local player = getPlayer()
         if player then
-            local roleName = player:getRole():getName()
-            if roleName ~= nil and roleName ~= "" and roleName ~= "none" then
+            local role = player:getRole()
+            if role and (role:hasAdminPower() or role:hasAdminTool()) then
                 AwayFromZomboid.resetAFKTimer()
                 return
             end
@@ -321,7 +321,7 @@ AwayFromZomboid.incrementAFKHook = function()
     local currentTime = os.time()
 
     if AwayFromZomboid.previousCheckTime ~= nil then
-        local delta = currentTime - AwayFromZomboid.previousCheckTime or currentTime
+        local delta = currentTime - (AwayFromZomboid.previousCheckTime or currentTime)
         delta = delta + AwayFromZomboid.lateTimerAddition
         AwayFromZomboid.lateTimerAddition = 0
         AwayFromZomboid.incrementAFKTimer(delta)
@@ -463,16 +463,16 @@ function JoypadControllerData:update(time)
         if isJoypadRTPressed(self.id) or isJoypadLTPressed(self.id) then
             AwayFromZomboid.onActivity()
         end
-        -- Left stick (movement)
+        -- Left stick (movement) with deadzone to prevent stick drift
         local moveX = getJoypadMovementAxisX(self.id)
         local moveY = getJoypadMovementAxisY(self.id)
-        if moveX ~= 0 or moveY ~= 0 then
+        if math.abs(moveX) > 0.2 or math.abs(moveY) > 0.2 then
             AwayFromZomboid.onActivity()
         end
-        -- Right stick (aiming)
+        -- Right stick (aiming) with deadzone to prevent stick drift
         local aimX = getJoypadAimingAxisX(self.id)
         local aimY = getJoypadAimingAxisY(self.id)
-        if aimX ~= 0 or aimY ~= 0 then
+        if math.abs(aimX) > 0.2 or math.abs(aimY) > 0.2 then
             AwayFromZomboid.onActivity()
         end
         -- D-Pad
